@@ -36,10 +36,25 @@ npx ts-node exercise7/src/worker/index.ts
 npx ts-node exercise7/src/starter/index.ts
 ```
 
-3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+3. View workflow in Temporal UI to comprehend event history: http://localhost:8233/namespaces/default/workflows
 
-4. Use Temporal CLI to interact with the workflow:
+## Expected Behavior
+1. Workflow starts and attempts withdrawal (fails with invalid-account)
+2. Workflow enters PENDING_FIX status
+3. Send retry signal with corrected account data
+4. Withdrawal succeeds, workflow waits for approval
+5. After approval, deposit completes
+6. Workflow completes successfully
 
+### Interactive Testing via UI
+Comment out the signal calls in `starter/index.ts` to manually send signals via Temporal UI:
+1. Run the workflow - it will wait in PENDING_FIX status
+2. Use **More Actions → Send a Signal** to send retry signal with corrected data
+3. Query status to see workflow progress
+4. Send approval signal via UI
+5. Observe workflow complete step by step
+
+### Alternative: Use Temporal CLI
 Send approval:
 ```bash
 temporal workflow signal \
@@ -55,14 +70,6 @@ temporal workflow signal \
   --name retry \
   --input '{"key":"toAccount","value":"account-456"}'
 ```
-
-## Expected Behavior
-1. Workflow starts and attempts withdrawal (fails with invalid-account)
-2. Workflow enters PENDING_FIX status
-3. Send retry signal with corrected account data
-4. Withdrawal succeeds, workflow waits for approval
-5. After approval, deposit completes
-6. Workflow completes successfully
 
 ## Key Learning Points
 - When to use manual vs automatic retries
