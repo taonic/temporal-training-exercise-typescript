@@ -30,6 +30,11 @@
 3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
 4. Observe status changes through query outputs
 
+## Expected Output
+- Initial status: PENDING
+- Status after approval: APPROVED → COMPLETED
+- Final status confirmation
+
 ### Query Using CLI
 You can also query the workflow status using the Temporal CLI:
 ```bash
@@ -38,7 +43,16 @@ temporal workflow query \
   --type getStatus
 ```
 
-## Expected Output
-- Initial status: PENDING
-- Status after approval: APPROVED → COMPLETED
-- Final status confirmation
+### Try Interactive Signaling
+Comment out `await handle.signal(approveSignal, true);` in `starter/index.ts`, then:
+1. Run the workflow - it will wait for approval
+2. Query the status using CLI (should show PENDING)
+3. Send approval signal via Temporal UI: **More Actions → Send a Signal**
+4. Query again to see status change to APPROVED → COMPLETED
+
+### Worker Dependency Experiment
+To understand that queries require an running worker:
+1. Stop the worker before sending approval signal
+2. Try querying the workflow - it will fail (no worker to handle query)
+3. Restart the worker
+4. Query again - it works, showing workflow state persisted across worker restarts
