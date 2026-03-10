@@ -31,6 +31,7 @@
 ## Running the Exercise
 1. Start worker: `npx ts-node exercise1/src/worker/index.ts`
 2. Execute workflow: `npx ts-node exercise1/src/starter/index.ts`
+3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
 
 ## Expected Output
 "Hello, Temporal!"

@@ -37,7 +37,8 @@
 ## Testing
 1. Start the worker: `npx ts-node exercise2/src/worker/index.ts`
 2. Run the workflow: `npx ts-node exercise2/src/starter/index.ts`
-3. Observe the workflow waiting for approval, then completing the transfer
+3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+4. Observe the workflow waiting for approval, then completing the transfer
 
 ## Next Steps
 Exercise 3 will add query handlers for better observability.

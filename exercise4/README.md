@@ -24,8 +24,9 @@ temporal server start-dev --search-attribute AccountId=Keyword
 ## Testing
 1. Start the worker: `npx ts-node exercise4/src/worker/index.ts`
 2. Run the workflow: `npx ts-node exercise4/src/starter/index.ts`
-3. Open Temporal Web UI (http://localhost:8233) and verify the AccountId search attribute
-4. Filter workflows by AccountId using CLI:
+3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+4. Verify the AccountId search attribute in the UI
+5. Filter workflows by AccountId using CLI:
 ```bash
 temporal workflow list --query 'AccountId="account-123"'
 ```

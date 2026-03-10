@@ -25,7 +25,7 @@ npx ts-node exercise6/src/worker/index.ts
 npx ts-node exercise6/src/starter/index.ts
 ```
 
-4. Check the Temporal Web UI at http://localhost:8233
+4. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
 
 ## Features Demonstrated
 - Complete money transfer workflow

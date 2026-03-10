@@ -41,7 +41,8 @@ npx ts-node exercise5/src/worker/index.ts
 npx ts-node exercise5/src/starter/index.ts
 ```
 
-4. Check the Temporal Web UI at http://localhost:8233 to see the summaries in action
+4. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+5. Check the activity summaries in the workflow execution details
 
 ## Key Concepts
 - **Activity Summary**: Runtime metadata that describes what an activity is doing

@@ -39,7 +39,9 @@ npx ts-node exercise7/src/worker/index.ts
 npx ts-node exercise7/src/starter/index.ts
 ```
 
-3. Use Temporal CLI to interact with the workflow:
+3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+
+4. Use Temporal CLI to interact with the workflow:
 
 Send approval:
 ```bash

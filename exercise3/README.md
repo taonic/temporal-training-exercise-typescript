@@ -27,7 +27,8 @@
 ## Testing
 1. Start the worker: `npx ts-node exercise3/src/worker/index.ts`
 2. Run the workflow: `npx ts-node exercise3/src/starter/index.ts`
-3. Observe status changes through query outputs
+3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
+4. Observe status changes through query outputs
 
 ### Query Using CLI
 You can also query the workflow status using the Temporal CLI:
