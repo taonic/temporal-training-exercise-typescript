@@ -16,6 +16,10 @@ async function main() {
     taskQueue: 'money-transfer-task-queue',
     workflowId: 'money-transfer-workflow',
     args: [request],
+    // TODO: Add searchAttributes to set AccountId
+    // searchAttributes: {
+    //   AccountId: [request.fromAccount],
+    // },
   });
 
   await new Promise((resolve) => setTimeout(resolve, 1000));

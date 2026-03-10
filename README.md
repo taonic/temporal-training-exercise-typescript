@@ -20,9 +20,9 @@ curl -sSf https://temporal.download/cli.sh | sh
 
 ## Setup
 
-1. Start Temporal dev server with AccountId search attribute:
+1. Start Temporal dev server with AccountId and TransferStatus search attributes:
 ```bash
-temporal server start-dev --search-attribute AccountId=Keyword
+temporal server start-dev --search-attribute AccountId=Keyword --search-attribute TransferStatus=Keyword
 ```
 
 2. Install dependencies:
