@@ -1,4 +1,4 @@
-# Exercise 2: Money Transfer Basics (45 min)
+# Exercise 2: Money Transfer Basics (30 min)
 
 ## Learning Objectives
 - Implement multiple activities (withdraw, deposit, refund)

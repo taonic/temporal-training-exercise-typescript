@@ -36,13 +36,13 @@ npm install
 - Basic Workflow and Activity setup
 - Worker registration and execution
 
-### [Exercise 2: Money Transfer Basics](exercise2/) (45 min)
+### [Exercise 2: Money Transfer Basics](exercise2/) (30 min)
 - Multiple activities (withdraw, deposit, refund)
 - Signal-based approval mechanism via `setHandler()`
 - `condition()` for conditional waiting
 - Basic error handling and compensation
 
-### [Exercise 3: Query Handlers](exercise3/) (35 min)
+### [Exercise 3: Query Handlers](exercise3/) (30 min)
 - Query methods for workflow state inspection via `defineQuery()` + `setHandler()`
 - Status tracking throughout execution
 - External workflow monitoring
@@ -56,12 +56,12 @@ npm install
 - Activity summaries via `proxyActivities` `summary` option
 - Enhanced monitoring in Temporal Web UI
 
-### [Exercise 6: Testing Strategy](exercise6/) (45 min)
+### [Exercise 6: Testing Strategy](exercise6/) (30 min)
 - Unit tests with `@temporalio/testing`
 - Time skipping for fast tests
 - Activity mocking in tests
 
-### [Exercise 7: Manual Activity Retry](exercise7/) (40 min)
+### [Exercise 7: Manual Activity Retry](exercise7/) (30 min)
 - Manual retry pattern using signals
 - Invalid data handling scenarios
 - Disabling automatic retries
@@ -84,13 +84,3 @@ Replace `solution1` with any exercise/solution number.
 ```bash
 npm test
 ```
-
-## Key TypeScript/Temporal Concepts
-
-| Go SDK | TypeScript SDK |
-|--------|---------------|
-| `workflow.GetSignalChannel` + `workflow.Go` | `defineSignal` + `setHandler` |
-| `workflow.SetQueryHandler` | `defineQuery` + `setHandler` |
-| `workflow.Await` | `condition()` |
-| `workflow.UpsertSearchAttributes` | `upsertSearchAttributes()` |
-| `ActivityOptions.Summary` | `proxyActivities({ summary })` |

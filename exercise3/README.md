@@ -1,4 +1,4 @@
-# Exercise 3: Flow Control with Query Handlers (35 min)
+# Exercise 3: Flow Control with Query Handlers (30 min)
 
 ## Learning Objectives
 - Implement Query handlers for workflow state inspection
