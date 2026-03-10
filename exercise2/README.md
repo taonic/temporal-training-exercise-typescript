@@ -40,5 +40,8 @@
 3. View workflow in Temporal UI: http://localhost:8233/namespaces/default/workflows
 4. Observe the workflow waiting for approval, then completing the transfer
 
+### Try Signaling via UI
+Comment out `await handle.signal(approveSignal, true);` in `starter/index.ts` and use Temporal UI's **More Actions → Send a Signal** to manually signal the workflow.
+
 ## Next Steps
 Exercise 3 will add query handlers for better observability.
