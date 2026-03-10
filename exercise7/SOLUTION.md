@@ -2,15 +2,41 @@
 
 ## Key Implementation Points
 
-### 1. Disable Automatic Retries
+### 1. Use Non-Retryable Errors
 ```typescript
-const { withdraw, deposit, refund } = proxyActivities<typeof activities>({
-  startToCloseTimeout: '5 seconds',
-  retry: { maximumAttempts: 1 },
-});
+import { log, ApplicationFailure } from '@temporalio/activity';
+
+export async function withdraw(account: string, amount: number): Promise<void> {
+  log.info('Withdrawing', { amount, account });
+  if (account === 'invalid-account') {
+    throw ApplicationFailure.nonRetryable('withdrawal failed - invalid account');
+  }
+}
 ```
 
-### 2. Retry Signal Handler
+### 2. Helper Functions
+```typescript
+// Update status and search attributes together
+const updateStatus = (newStatus: TransferStatus) => {
+  status = newStatus;
+  upsertSearchAttributes({ TransferStatus: [newStatus] });
+};
+
+// Retry activities on failure, waiting for manual correction via signal
+const retryActivity = async <T>(fn: () => Promise<T>): Promise<T> => {
+  while (true) {
+    try {
+      return await fn();
+    } catch (e) {
+      updateStatus('PENDING_FIX');
+      retryRequested = false;
+      await condition(() => retryRequested);
+    }
+  }
+};
+```
+
+### 3. Retry Signal Handler
 ```typescript
 setHandler(retrySignal, (update: RetryUpdate) => {
   if (update.key === 'fromAccount') updatedRequest.fromAccount = update.value;
@@ -20,22 +46,14 @@ setHandler(retrySignal, (update: RetryUpdate) => {
 });
 ```
 
-### 3. Manual Retry Loop
+### 4. Use Retry Helper
 ```typescript
-while (true) {
-  try {
-    await withdraw(updatedRequest.fromAccount, updatedRequest.amount);
-    break;
-  } catch (e) {
-    status = 'RETRYING';
-    retryRequested = false;
-    await condition(() => retryRequested);
-  }
-}
+await retryActivity(() => withdraw(updatedRequest.fromAccount, updatedRequest.amount));
 ```
 
 ## Key Concepts
+- Non-retryable errors for invalid data scenarios
 - Manual retry loops for handling correctable errors
 - Signal-based data correction
 - Dynamic request updates during execution
-- Status tracking for retry states
+- Helper functions to reduce code duplication

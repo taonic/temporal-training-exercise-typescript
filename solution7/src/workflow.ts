@@ -4,7 +4,6 @@ import type { TransferRequest, TransferStatus, RetryUpdate } from './models';
 
 const { withdraw, deposit, refund } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5 seconds',
-  retry: { maximumAttempts: 1 },
 });
 
 export const approveSignal = defineSignal<[boolean]>('approve');
@@ -12,7 +11,7 @@ export const retrySignal = defineSignal<[RetryUpdate]>('retry');
 export const getStatusQuery = defineQuery<TransferStatus>('getStatus');
 
 export async function transfer(request: TransferRequest): Promise<string> {
-  upsertSearchAttributes({ AccountId: [request.fromAccount] });
+  upsertSearchAttributes({ TransferStatus: ['PENDING'] });
 
   let status: TransferStatus = 'PENDING';
   let approved = false;
@@ -34,40 +33,41 @@ export async function transfer(request: TransferRequest): Promise<string> {
     retryRequested = true;
   });
 
-  while (true) {
-    try {
-      await withdraw(updatedRequest.fromAccount, updatedRequest.amount);
-      break;
-    } catch (e) {
-      status = 'RETRYING';
-      retryRequested = false;
-      await condition(() => retryRequested);
+  // Helper function to update status and search attributes
+  const updateStatus = (newStatus: TransferStatus) => {
+    status = newStatus;
+    upsertSearchAttributes({ TransferStatus: [newStatus] });
+  };
+
+  // Helper function to retry activities on failure, waiting for manual correction via signal
+  const retryActivity = async <T>(fn: () => Promise<T>): Promise<T> => {
+    while (true) {
+      try {
+        return await fn();
+      } catch (e) {
+        updateStatus('PENDING_FIX');
+        retryRequested = false;
+        await condition(() => retryRequested);
+      }
     }
-  }
+  };
+
+  await retryActivity(() => withdraw(updatedRequest.fromAccount, updatedRequest.amount));
   console.log('Withdrawal completed');
 
   console.log('Waiting for approval...');
   await condition(() => approvalReceived);
 
   if (approved) {
-    status = 'APPROVED';
-    while (true) {
-      try {
-        await deposit(updatedRequest.toAccount, updatedRequest.amount);
-        break;
-      } catch (e) {
-        status = 'RETRYING';
-        retryRequested = false;
-        await condition(() => retryRequested);
-      }
-    }
-    status = 'COMPLETED';
+    updateStatus('APPROVED');
+    await retryActivity(() => deposit(updatedRequest.toAccount, updatedRequest.amount));
+    updateStatus('COMPLETED');
     console.log('Transfer approved and completed');
     return 'Transfer completed successfully';
   }
 
   await refund(updatedRequest.fromAccount, updatedRequest.amount);
-  status = 'CANCELLED';
+  updateStatus('CANCELLED');
   console.log('Transfer rejected and refunded');
   return 'Transfer rejected and refunded';
 }

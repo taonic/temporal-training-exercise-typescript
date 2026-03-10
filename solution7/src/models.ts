@@ -5,7 +5,7 @@ export interface TransferRequest {
   transferId: string;
 }
 
-export type TransferStatus = 'PENDING' | 'APPROVED' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'RETRYING';
+export type TransferStatus = 'PENDING' | 'APPROVED' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'PENDING_FIX';
 
 export interface RetryUpdate {
   key: string;

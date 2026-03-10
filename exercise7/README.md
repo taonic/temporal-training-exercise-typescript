@@ -4,7 +4,7 @@
 Learn how to implement manual retry patterns using signals when automatic retries are insufficient for handling invalid data scenarios.
 
 ## Key Concepts
-- Disabling automatic activity retries
+- Preventing automatic retries for invalid data
 - Manual retry pattern using signals
 - Interactive error correction
 - Dynamic request updates during workflow execution
@@ -12,20 +12,17 @@ Learn how to implement manual retry patterns using signals when automatic retrie
 ## What You'll Implement
 
 ### 1. Activity Configuration
-Configure `proxyActivities` to disable automatic retries by setting `retry: { maximumAttempts: 1 }`.
+Throw `ApplicationFailure.nonRetryable()` errors in activities for invalid data scenarios to prevent automatic retries.
 
 ### 2. Manual Retry Logic
 Wrap activity calls in a `while(true)` loop that:
 - Executes operations
-- Catches errors and sets status to `'RETRYING'`
+- Catches errors and sets status to `'PENDING_FIX'`
 - Waits for retry signal before continuing
 
 ### 3. Signal Handlers
 - `approveSignal`: Handle approval/rejection signals
 - `retrySignal`: Handle retry signals with updated data (key/value pairs)
-
-### 4. Search Attributes
-Upsert the `AccountId` search attribute for workflow visibility.
 
 ## Testing the Exercise
 
@@ -61,7 +58,7 @@ temporal workflow signal \
 
 ## Expected Behavior
 1. Workflow starts and attempts withdrawal (fails with invalid-account)
-2. Workflow enters RETRYING status
+2. Workflow enters PENDING_FIX status
 3. Send retry signal with corrected account data
 4. Withdrawal succeeds, workflow waits for approval
 5. After approval, deposit completes
