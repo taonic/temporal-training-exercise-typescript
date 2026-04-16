@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc --build",
-    "test": "mocha --exit 'solution6/src/*.test.ts' --require ts-node/register --timeout 30000"
+    "test": "mocha --exit '{solution,exercise}*/src/*.test.ts' --require ts-node/register --timeout 30000"
   },
   "dependencies": {
     "@temporalio/activity": "^1.11.0",

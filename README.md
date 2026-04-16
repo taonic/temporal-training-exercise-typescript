@@ -67,6 +67,12 @@ npm install
 - Disabling automatic retries
 - Interactive retry commands
 
+### [Exercise 8: Workflow Versioning](exercise8/) (30 min)
+- Workflow versioning with `patched()` API
+- Safe workflow evolution and backward compatibility
+- Replay testing for version validation
+- Handling multiple workflow versions in production
+
 ## Running Solutions
 
 ```bash
