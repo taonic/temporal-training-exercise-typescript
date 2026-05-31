@@ -885,3 +885,85 @@ h2 {
     height: 300px;
   }
 }
+
+/* Product tour */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.tour-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.tour-spotlight {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(15, 17, 21, 0.62);
+  outline: 2px solid var(--temporal-uv);
+  outline-offset: 2px;
+  pointer-events: none;
+  transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+
+.tour-tooltip {
+  position: fixed;
+  width: min(320px, calc(100vw - 24px));
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px 14px;
+  z-index: 1001;
+}
+
+.tour-step-count {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--temporal-uv);
+}
+
+.tour-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.tour-body {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.tour-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tour-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-skip {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--faint);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tour-skip:hover {
+  color: var(--muted);
+  text-decoration: underline;
+}

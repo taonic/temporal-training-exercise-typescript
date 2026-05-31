@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 
 import { launchConfetti } from "./confetti.js";
+import Tour from "./Tour.vue";
 import {
   highlightCode,
   labelForPath,
@@ -64,6 +65,63 @@ const state = reactive({
 
 const editorValue = ref("");
 const walkVersion = ref(0);
+
+// Product tour for new visitors. It runs automatically the first time someone
+// lands on the site (tracked in localStorage) and can be replayed any time from
+// the topbar "Tour" button.
+const tourSeenKey = `${storagePrefix}:tour-seen`;
+const tourVisible = ref(false);
+const tourSteps = [
+  {
+    title: "Welcome to Temporal TypeScript Training",
+    body: "A hands-on course where you edit real Temporal code and run it live in a sandbox. Here's a 60-second tour of the workspace.",
+  },
+  {
+    selector: "[data-tour='exercise-picker']",
+    title: "Pick an exercise",
+    body: "Jump between the eight exercises here, or use Previous / Next. Each one builds on the last.",
+  },
+  {
+    selector: "[data-tour='editor']",
+    title: "Edit the code",
+    body: "This is your editor. Make changes to the Workflow, Activities, worker, and starter — your edits are saved automatically in your browser.",
+  },
+  {
+    selector: "[data-tour='file-tabs']",
+    title: "Switch between files",
+    body: "Each exercise has several source files. The ▶ / ■ buttons next to the worker and starter let you run just that piece.",
+  },
+  {
+    selector: "[data-tour='instructions']",
+    title: "Follow the instructions",
+    body: "Step-by-step guidance lives here. Tick off steps as you go and track your progress at the top.",
+  },
+  {
+    selector: "[data-tour='solution-toggle']",
+    title: "Peek at the solution",
+    body: "Stuck? Toggle the solution view to compare with a working answer, then switch back to your own code.",
+  },
+  {
+    selector: "[data-tour='run']",
+    title: "Run it for real",
+    body: "Hit Run to spin up a live Temporal dev server in a sandbox, start the worker, and execute your Workflow — output streams into the console below.",
+  },
+  {
+    selector: "[data-tour='runner-actions']",
+    title: "Inspect in the Temporal UI",
+    body: "After a run, a Temporal UI button appears here. Open it to explore your Workflow's event history, state, and timeline in the Temporal Web UI — the same view you'd use in production.",
+  },
+];
+
+function startTour() {
+  tourVisible.value = true;
+}
+
+function finishTour() {
+  tourVisible.value = false;
+  localStorage.setItem(tourSeenKey, "1");
+}
+
 const editorRef = ref(null);
 const highlightRef = ref(null);
 const consoleRef = ref(null);
@@ -567,6 +625,10 @@ onMounted(() => {
     const index = course.exercises.findIndex((exercise) => exercise.id === id);
     if (index >= 0 && index !== state.exerciseIndex) selectExercise(index);
   });
+  // First-time visitors get the tour automatically once the layout has settled.
+  if (!localStorage.getItem(tourSeenKey)) {
+    window.setTimeout(startTour, 600);
+  }
 });
 
 onBeforeUnmount(() => {
@@ -582,14 +644,14 @@ onBeforeUnmount(() => {
         <img class="brand-image" src="/assets/course-visual.png" alt="Temporal">
         <div class="brand-copy">
           <p class="eyebrow">Temporal TypeScript Training</p>
-          <h2>Workflow Exercises</h2>
+          <h2>Temporal in Practice</h2>
         </div>
       </div>
       <div class="topbar-controls">
         <button class="button button-secondary" type="button" :disabled="state.exerciseIndex === 0" @click="selectExercise(state.exerciseIndex - 1)">
           Previous
         </button>
-        <label class="exercise-picker">
+        <label class="exercise-picker" data-tour="exercise-picker">
           <select :value="state.exerciseIndex" @change="selectExercise(Number($event.target.value))">
             <option v-for="(exercise, index) in course.exercises" :key="exercise.id" :value="index">
               Exercise {{ exercise.number }}: {{ exercise.title.replace(/^Exercise\s+\d+:\s*/, "") }}
@@ -599,6 +661,9 @@ onBeforeUnmount(() => {
         <button class="button button-secondary" type="button" :disabled="state.exerciseIndex === course.exercises.length - 1" @click="selectExercise(state.exerciseIndex + 1)">
           Next
         </button>
+        <button class="button button-secondary" type="button" title="Take the product tour" @click="startTour">
+          Tour
+        </button>
         <button class="button button-secondary theme-toggle" type="button" :aria-pressed="state.theme === 'dark'" :title="themeToggleLabel" @click="toggleTheme">
           {{ state.theme === "dark" ? "☀" : "☾" }}
         </button>
@@ -607,7 +672,7 @@ onBeforeUnmount(() => {
 
     <main class="course-shell" :style="{ '--code-col': state.codeWidth || undefined }">
       <section class="workspace-panel code-panel" aria-label="Code workspace">
-        <div class="file-tabs" role="tablist" aria-label="Source files">
+        <div class="file-tabs" role="tablist" aria-label="Source files" data-tour="file-tabs">
           <template v-for="file in currentFiles" :key="file.path">
             <button
               class="file-tab"
@@ -631,6 +696,7 @@ onBeforeUnmount(() => {
           <button
             v-if="hasSolution"
             class="view-tab"
+            data-tour="solution-toggle"
             :class="{ active: state.fileView === 'solution' }"
             type="button"
             :title="viewToggleLabel"
@@ -640,7 +706,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="editor-shell">
+        <div class="editor-shell" data-tour="editor">
           <pre ref="highlightRef" class="code-highlight" aria-hidden="true"><code v-html="highlightedCode" /></pre>
           <textarea
             ref="editorRef"
@@ -664,8 +730,8 @@ onBeforeUnmount(() => {
               <span class="worker-dot" aria-hidden="true"></span>
               {{ workerStatusLabel }}
             </span>
-            <div class="runner-actions">
-              <button class="button button-primary" type="button" :disabled="!canRunSandbox" @click="runInSandbox">
+            <div class="runner-actions" data-tour="runner-actions">
+              <button class="button button-primary" type="button" data-tour="run" :disabled="!canRunSandbox" @click="runInSandbox">
                 Run
               </button>
               <a v-if="state.sandboxId && state.temporalUiUrl" class="button button-link button-cta" :href="state.temporalUiUrl" target="_blank" rel="noopener">Temporal UI</a>
@@ -684,7 +750,7 @@ onBeforeUnmount(() => {
 
       <div class="pane-resizer" data-cursor="col-resize" role="separator" aria-orientation="vertical" aria-label="Resize panels" @pointerdown="startPaneResize" />
 
-      <section class="workspace-panel instruction-panel" aria-label="Exercise instructions">
+      <section class="workspace-panel instruction-panel" aria-label="Exercise instructions" data-tour="instructions">
         <div class="instruction-heading">
           <div class="instruction-heading-top">
             <p class="panel-kicker">Instructions</p>
@@ -734,4 +800,6 @@ onBeforeUnmount(() => {
   </div>
 
   <div class="toast" :class="{ visible: state.toast }" role="status" aria-live="polite">{{ state.toast }}</div>
+
+  <Tour v-if="tourVisible" :steps="tourSteps" @finish="finishTour" />
 </template>
