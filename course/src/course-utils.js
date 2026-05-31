@@ -98,11 +98,24 @@ export function renderMarkdown(markdown) {
     codeLanguage = "";
   };
 
+  // Consecutive plain-text lines form one paragraph: hard line wraps in the
+  // source are soft breaks, so they're joined with a space rather than each
+  // becoming its own <p> (which showed up as artificial line breaks).
+  let para = [];
+  const flushPara = () => {
+    if (para.length) {
+      html.push(`<p>${inlineMarkdown(para.join(" "))}</p>`);
+      para = [];
+    }
+  };
+
   for (const line of lines) {
     const fence = line.match(/^```(\S*)/);
     if (fence) {
-      if (inCode) closeCode();
-      else {
+      if (inCode) {
+        closeCode();
+      } else {
+        flushPara();
         closeList();
         inCode = true;
         codeLanguage = fence[1] ?? "";
@@ -116,12 +129,14 @@ export function renderMarkdown(markdown) {
     }
 
     if (!line.trim()) {
+      flushPara();
       closeList();
       continue;
     }
 
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
     if (heading) {
+      flushPara();
       closeList();
       const level = heading[1].length;
       html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
@@ -130,6 +145,7 @@ export function renderMarkdown(markdown) {
 
     const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
     if (ordered) {
+      flushPara();
       if (list !== "ol") {
         closeList();
         list = "ol";
@@ -141,6 +157,7 @@ export function renderMarkdown(markdown) {
 
     const unordered = line.match(/^\s*[-*]\s+(.+)$/);
     if (unordered) {
+      flushPara();
       if (list !== "ul") {
         closeList();
         list = "ul";
@@ -151,10 +168,11 @@ export function renderMarkdown(markdown) {
     }
 
     closeList();
-    html.push(`<p>${inlineMarkdown(line)}</p>`);
+    para.push(line.trim());
   }
 
   if (inCode) closeCode();
+  flushPara();
   closeList();
   return `<div class="markdown">${html.join("\n")}</div>`;
 }

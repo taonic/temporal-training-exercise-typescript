@@ -272,11 +272,19 @@ h2 {
 .instruction-heading {
   min-height: 42px;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 12px 16px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
+}
+
+.instruction-heading-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .instruction-heading .panel-kicker {
@@ -289,6 +297,31 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.step-progress-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Segmented progress bar: one segment per checkable step, filled as ticked. */
+.step-progress {
+  display: flex;
+  gap: 4px;
+}
+
+.step-progress-seg {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  transition: background 160ms ease;
+}
+
+.step-progress-seg.filled {
+  background: var(--success);
 }
 
 .file-tabs,
@@ -342,6 +375,40 @@ h2 {
 .file-tab.dirty::after {
   content: " *";
   color: var(--amber);
+}
+
+.tab-run {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border-right: 1px solid var(--line);
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tab-btn:hover:not(:disabled) {
+  border-color: var(--temporal-uv);
+  color: var(--temporal-uv);
+}
+
+.tab-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .view-tab {
@@ -491,27 +558,6 @@ h2 {
   color: var(--code-ink);
 }
 
-.runner-header {
-  min-height: 66px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 13px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.runner-header .panel-kicker {
-  color: #aeb4ff;
-}
-
-.runner-header strong {
-  display: block;
-  color: #ffffff;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
 .runner-tabs {
   background: #1f1f24;
   border-bottom-color: rgba(255, 255, 255, 0.1);
@@ -522,14 +568,66 @@ h2 {
   border-right-color: rgba(255, 255, 255, 0.1);
 }
 
-.sandbox-id {
+/* Run controls now live in the tab row instead of a separate header. */
+.runner-tabs .runner-actions {
   margin-left: auto;
   align-self: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.runner-tabs .runner-actions .button {
+  min-height: 28px;
+  padding: 4px 11px;
+  font-size: 12px;
+}
+
+/* Worker status indicator: grey dot when stopped, green (pulsing while
+   starting) when the worker is up. */
+.worker-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  margin-left: 12px;
   padding: 0 12px;
   color: var(--code-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
+
+.worker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+}
+
+.worker-status.active {
+  color: #6ee7a8;
+}
+
+.worker-status.active .worker-dot {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.75);
+}
+
+.worker-status.busy .worker-dot {
+  animation: worker-pulse 1s ease-in-out infinite;
+}
+
+@keyframes worker-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 
 .runner-output {
   flex: 1 1 auto;
@@ -633,41 +731,75 @@ h2 {
 }
 
 
-/* Walkthrough steps reuse the markdown styling but add a checkbox per "Step"
-   section. Only the checkbox is interactive, so selecting code inside a step
-   doesn't toggle it. */
+/* Walkthrough steps render the markdown full-width with a "Mark step complete"
+   toggle at the end of each step. Only that control is interactive, so selecting
+   code inside a step never toggles it. */
 .walkthrough {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
-.step-row {
-  display: grid;
-  grid-template-columns: 22px 1fr;
-  gap: 12px;
-  align-items: start;
-}
-
-.step-row > input {
-  width: 18px;
-  height: 18px;
-  margin-top: 5px;
-  accent-color: var(--temporal-uv);
-  cursor: pointer;
+.step-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
 }
 
 .step-body {
   min-width: 0;
 }
 
-/* Non-step sections (intro, recap) line up with the step text. */
-.step-plain {
-  padding-left: 34px;
+.step-block.completed .step-body {
+  opacity: 0.45;
 }
 
-.step-row.completed .step-body {
-  opacity: 0.45;
+/* Obvious, button-like completion toggle at the end of each step. */
+.step-check {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.step-check:hover {
+  border-color: var(--temporal-uv);
+  color: var(--temporal-uv);
+}
+
+.step-check input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--temporal-uv);
+  cursor: pointer;
+}
+
+.step-check.done {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.step-check.done input {
+  accent-color: var(--success);
+}
+
+/* The intro/recap sections render plainly, full-width. */
+.step-plain {
+  min-width: 0;
 }
 
 .toast {
@@ -744,19 +876,9 @@ h2 {
     padding: 10px;
   }
 
-  .instruction-heading,
-  .runner-header {
+  .instruction-heading {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .runner-actions {
-    width: 100%;
-  }
-
-  .runner-actions .button {
-    flex: 1;
-    text-align: center;
   }
 
   .runner-dock {

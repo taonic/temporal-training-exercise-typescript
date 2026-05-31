@@ -6,10 +6,10 @@
     "build": "tsc --build",
     "test": "mocha --exit '{solution,exercise}*/src/*.test.ts' --require ts-node/register --timeout 30000",
     "course:data": "node scripts/build-course-site.mjs",
-    "course:build": "npm run course:data && vite build --config course/vite.config.mjs",
-    "course:serve": "npm run course:data && vite --config course/vite.config.mjs --host 127.0.0.1 --port 4173",
-    "course:preview": "vite preview --config course/vite.config.mjs --host 127.0.0.1 --port 4173",
-    "course:sandbox": "node scripts/course-sandbox-runner.mjs"
+    "course:build": "vite build --config course/vite.config.mjs",
+    "course:serve": "vite --config course/vite.config.mjs --host 127.0.0.1 --port 4173",
+    "course:preview": "trap \"kill 0\" EXIT; vite build --config course/vite.config.mjs --watch & vite preview --config course/vite.config.mjs --host 127.0.0.1 --port 4173",
+    "course:sandbox": "node --watch scripts/course-sandbox-runner.mjs"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.183.0",

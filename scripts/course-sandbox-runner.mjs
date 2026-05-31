@@ -15,6 +15,11 @@ const port = Number(process.env.PORT ?? 8787);
 const appDir = "/opt/app";
 const temporalBin = "/usr/local/bin/temporal";
 const temporalUiPort = 8233;
+// How long the starter may wait for its Workflow to finish. The Workflow can sit
+// idle waiting for a worker (e.g. when the worker is started *after* the starter)
+// or for a signal, so this is generous - it's only a safety net to avoid hanging
+// forever, kept under the sandbox auto-stop interval.
+const starterTimeoutMs = 10 * 60_000;
 
 const temporalCliInstall = [
   "apt-get update",
@@ -96,8 +101,80 @@ class CourseSandboxManager {
     this.daytona = new Daytona({ apiKey: process.env.DAYTONA_KEY });
   }
 
-  async launchAndRun(exerciseId, files, events, onUiReady) {
+  // Dispatches a run request. `action` selects which parts run:
+  //   "worker"  - (re)start the long-running worker, creating the sandbox if needed
+  //   "starter" - run the starter once against an already-running worker
+  //   "all"     - the combined flow: (re)start the worker, then run the starter
+  async run({ action = "all", sandboxId, exerciseId, files }, events, onUiReady) {
     const exercise = await resolveExercise(exerciseId);
+    const wantWorker = action === "all" || action === "worker";
+    const wantStarter = action === "all" || action === "starter";
+
+    let sandbox = sandboxId ? await this.resolveRunningSandbox(sandboxId, events) : null;
+    let uiInfo = {};
+    let created = false;
+    if (sandbox) {
+      await this.uploadExercise(sandbox, exercise, files);
+    } else {
+      // No usable sandbox (never created, or the previous one expired) - make a
+      // fresh one. createSandbox brings up Temporal and emits the new UI info.
+      ({ sandbox, uiInfo } = await this.createSandbox(exercise, files, events, onUiReady));
+      created = true;
+    }
+
+    // A freshly created sandbox has no worker yet, so even a starter-only run
+    // must start one first.
+    const mustStartWorker = wantWorker || (created && wantStarter);
+    try {
+      if (mustStartWorker) await this.startWorker(sandbox, exercise, events);
+      const out = {};
+      if (wantStarter) out.workflowResult = await this.runStarter(sandbox, exercise, events);
+      return { ...uiInfo, sandboxId: sandbox.id, ...out };
+    } catch (err) {
+      if (created) {
+        events.log(`Launch failed: ${err.message}. Cleaning up sandbox...`);
+        try {
+          await sandbox.delete();
+        } catch (cleanupErr) {
+          events.log(`Cleanup error ignored: ${cleanupErr.message}`);
+        }
+      }
+      throw err;
+    }
+  }
+
+  // Returns the existing sandbox only if it's still usable. Sandboxes auto-stop
+  // after a period of inactivity and are auto-deleted soon after, so a stored id
+  // may point at something that's been deleted (get throws) or merely stopped
+  // (state !== "started"). In either "expired" case we discard it - and delete a
+  // stale stopped one - so the caller creates a fresh sandbox instead.
+  async resolveRunningSandbox(sandboxId, events) {
+    events.log("Resolving sandbox...");
+    let sandbox;
+    try {
+      sandbox = await this.daytona.get(sandboxId);
+    } catch (err) {
+      events.log(`Sandbox ${sandboxId} is gone (${err.message}). Starting a new one...`);
+      return null;
+    }
+    try {
+      await sandbox.refreshData();
+    } catch {
+      /* best effort - fall back to whatever state get() returned */
+    }
+    if (sandbox.state && sandbox.state !== "started") {
+      events.log(`Sandbox ${sandboxId} is ${sandbox.state}. Starting a new one...`);
+      try {
+        await sandbox.delete();
+      } catch {
+        /* it will be auto-deleted anyway */
+      }
+      return null;
+    }
+    return sandbox;
+  }
+
+  async createSandbox(exercise, files, events, onUiReady) {
     events.log(`Creating sandbox for ${exercise.id}...`);
     const sandbox = await this.daytona.create(
       {
@@ -118,8 +195,7 @@ class CourseSandboxManager {
       const uiInfo = { sandboxId: sandbox.id, uiUrl: preview.url };
       events.log(`Temporal UI: ${preview.url}`);
       onUiReady(uiInfo);
-      const workflowResult = await this.startWorkerAndRunStarter(sandbox, exercise, events);
-      return { ...uiInfo, workflowResult };
+      return { sandbox, uiInfo };
     } catch (err) {
       events.log(`Launch failed: ${err.message}. Cleaning up sandbox...`);
       try {
@@ -131,17 +207,19 @@ class CourseSandboxManager {
     }
   }
 
-  async runEdited(sandboxId, exerciseId, files, events) {
-    const exercise = await resolveExercise(exerciseId);
-    events.log("Resolving sandbox...");
-    const sandbox = await this.daytona.get(sandboxId);
-    await this.uploadExercise(sandbox, exercise, files);
-    return this.startWorkerAndRunStarter(sandbox, exercise, events, { restartWorker: true });
-  }
-
   async stop(sandboxId) {
     const sandbox = await this.daytona.get(sandboxId);
     await sandbox.delete();
+  }
+
+  async stopWorker(sandboxId) {
+    const sandbox = await this.daytona.get(sandboxId);
+    await sandbox.process.executeCommand(`pkill -f "src/worker/index.ts" 2>/dev/null; true`);
+    try {
+      await sandbox.process.deleteSession("worker");
+    } catch {
+      /* no worker session */
+    }
   }
 
   async uploadExercise(sandbox, exercise, files) {
@@ -178,15 +256,15 @@ class CourseSandboxManager {
     await this.waitForTemporal(sandbox, "temporal-server", response.cmdId, events);
   }
 
-  async startWorkerAndRunStarter(sandbox, exercise, events, opts = {}) {
-    if (opts.restartWorker) {
-      events.log("Stopping previous worker...");
-      await sandbox.process.executeCommand(`pkill -f "${exercise.workerProcessPattern}" 2>/dev/null; true`);
-      try {
-        await sandbox.process.deleteSession("worker");
-      } catch {
-        /* no worker session */
-      }
+  // (Re)starts the long-running worker. Killing any existing worker first makes
+  // this safe to call whether or not one is already running.
+  async startWorker(sandbox, exercise, events) {
+    events.log("Stopping previous worker...");
+    await sandbox.process.executeCommand(`pkill -f "${exercise.workerProcessPattern}" 2>/dev/null; true`);
+    try {
+      await sandbox.process.deleteSession("worker");
+    } catch {
+      /* no worker session */
     }
 
     events.log("Starting worker...");
@@ -197,17 +275,56 @@ class CourseSandboxManager {
       runAsync: true,
     });
     await sleep(3000);
+  }
 
+  // Runs the starter once and returns its output. We launch it as an async
+  // session command and poll for completion instead of using a fixed command
+  // timeout, so a Workflow that's waiting for a worker (started after the
+  // starter) or for a signal doesn't time out before it can finish.
+  async runStarter(sandbox, exercise, events) {
     events.log("Triggering starter...");
     events.log(`$ ${exercise.starter}`);
-    const result = await sandbox.process.executeCommand(
-      `cd ${appDir} && ${exercise.starter}`,
-      undefined,
-      undefined,
-      120,
-    );
-    if (result.exitCode !== 0) throw new Error(`Workflow run failed: ${result.result}`);
-    const output = (result.result ?? "").trim();
+
+    // A fresh session each run; drop any leftover one so a re-run cleanly
+    // supersedes (and kills) a previous starter command.
+    try {
+      await sandbox.process.deleteSession("starter");
+    } catch {
+      /* no previous starter session */
+    }
+    await sandbox.process.createSession("starter");
+    const { cmdId } = await sandbox.process.executeSessionCommand("starter", {
+      command: `cd ${appDir} && ${exercise.starter}`,
+      runAsync: true,
+    });
+
+    const startedAt = Date.now();
+    const deadline = startedAt + starterTimeoutMs;
+    let command;
+    while (Date.now() < deadline) {
+      command = await sandbox.process.getSessionCommand("starter", cmdId);
+      if (command?.exitCode !== null && command?.exitCode !== undefined) break;
+      events.spinner(`Waiting for the Workflow to finish (${Math.round((Date.now() - startedAt) / 1000)}s)...`);
+      await sleep(1500);
+    }
+    events.spinner("");
+
+    // Prefer the clean stdout channel (where the starter's console.log lands).
+    // The combined `output` log can interleave stderr or a trailing session
+    // marker, which would stop the result's last line from matching the
+    // exercise's expected output and suppress the success confetti.
+    const logs = await sandbox.process.getSessionCommandLogs("starter", cmdId);
+    const output = (logs?.stdout || logs?.output || "").trim();
+    try {
+      await sandbox.process.deleteSession("starter");
+    } catch {
+      /* best-effort cleanup */
+    }
+
+    if (command?.exitCode === null || command?.exitCode === undefined) {
+      throw new Error("Workflow did not finish in time - is the worker running?");
+    }
+    if (command.exitCode !== 0) throw new Error(`Workflow run failed: ${output}`);
     events.log("Workflow output:");
     for (const line of output.split("\n")) events.log(`  ${line}`);
     return output;
@@ -268,10 +385,8 @@ const server = http.createServer(async (req, res) => {
         log: (message) => writeSse(res, "log", message),
         spinner: (message) => writeSse(res, "spinner", message),
       };
-      const result = body.sandboxId
-        ? await getManager().runEdited(body.sandboxId, body.exerciseId, body.files, events)
-        : await getManager().launchAndRun(body.exerciseId, body.files, events, (ui) => writeSse(res, "ui", ui));
-      writeSse(res, "result", typeof result === "string" ? { workflowResult: result } : result);
+      const result = await getManager().run(body, events, (ui) => writeSse(res, "ui", ui));
+      writeSse(res, "result", result);
       writeSse(res, "done", null);
       res.end();
       return;
@@ -283,7 +398,11 @@ const server = http.createServer(async (req, res) => {
         json(res, 400, { error: "sandboxId required" });
         return;
       }
-      await getManager().stop(body.sandboxId);
+      if (body.target === "worker") {
+        await getManager().stopWorker(body.sandboxId);
+      } else {
+        await getManager().stop(body.sandboxId);
+      }
       json(res, 200, { ok: true });
       return;
     }

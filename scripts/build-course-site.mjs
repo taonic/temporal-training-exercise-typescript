@@ -138,5 +138,13 @@ const json = JSON.stringify(data, null, 2)
   .replace(/\u2029/g, "\\u2029");
 
 await fs.mkdir(courseDir, { recursive: true });
-await fs.writeFile(outputPath, `window.COURSE_DATA = ${json};\n`);
-console.log(`Built ${path.relative(rootDir, outputPath)} with ${exercises.length} exercises.`);
+const contents = `window.COURSE_DATA = ${json};\n`;
+// Only write when the content actually changed so watch/rebuild pipelines that
+// regenerate on every build don't loop on their own output.
+const existing = await fs.readFile(outputPath, "utf8").catch(() => null);
+if (existing === contents) {
+  console.log(`Course data unchanged (${exercises.length} exercises).`);
+} else {
+  await fs.writeFile(outputPath, contents);
+  console.log(`Built ${path.relative(rootDir, outputPath)} with ${exercises.length} exercises.`);
+}

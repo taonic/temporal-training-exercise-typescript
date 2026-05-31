@@ -88,7 +88,7 @@ complete — read it to see what happens:
 ```typescript
 const handle = await client.workflow.start(greet, {
   taskQueue: 'hello-task-queue',
-  workflowId: 'greeting-workflow',
+  workflowId: `greeting-workflow-${randomSuffix()}`,
   args: ['Temporal'],
 });
 
@@ -98,7 +98,9 @@ console.log(result);
 
 **Why it matters:** the Starter and the Worker connect through the *same task
 queue* (`hello-task-queue`). The `args: ['Temporal']` value becomes the `name`
-parameter of your Workflow, which is why the output ends with `Temporal!`.
+parameter of your Workflow, which is why the output ends with `Temporal!`. The
+random suffix on the `workflowId` keeps each run unique so you can press **Run**
+repeatedly without hitting an "already started" error.
 
 ## Step 5 — Run it
 
@@ -110,8 +112,8 @@ run. When it finishes, the **Output** tab shows:
 Hello, Temporal!
 ```
 
-You can also open the **Temporal UI** button to inspect the `greeting-workflow`
-execution and its event history.
+You can also open the **Temporal UI** button to inspect the
+`greeting-workflow-<suffix>` execution and its event history.
 
 ## Recap
 - **Activity** (`createGreeting`) does the work.

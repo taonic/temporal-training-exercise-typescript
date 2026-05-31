@@ -29,11 +29,15 @@ const defaultExpectedOutput = "Transfer completed successfully";
 
 function outputMatchesExpected(exerciseId, output) {
   const expected = expectedOutputs[exerciseId] ?? defaultExpectedOutput;
-  const trimmed = String(output ?? "").trim();
+  // Strip ANSI colour codes so a styled line still matches cleanly.
+  const trimmed = String(output ?? "").replace(/\x1b\[[0-9;]*m/g, "").trim();
   if (!trimmed) return false;
   if (trimmed === expected) return true;
   const lines = trimmed.split("\n").map((line) => line.trim()).filter(Boolean);
-  return lines[lines.length - 1] === expected;
+  // The success line is normally last, but tolerate a trailing log/marker line
+  // by accepting it anywhere too - each exercise's success string is only ever
+  // printed on success, so this can't match an intermediate or failed state.
+  return lines[lines.length - 1] === expected || lines.includes(expected);
 }
 
 const state = reactive({
@@ -51,7 +55,9 @@ const state = reactive({
   logs: [],
   spinner: "",
   workflowOutput: "",
-  running: false,
+  workerBusy: false,
+  starterBusy: false,
+  workerActive: false,
   codeWidth: localStorage.getItem(`${storagePrefix}:code-width`) ?? "",
   dockHeight: localStorage.getItem(`${storagePrefix}:dock-height`) ?? "",
 });
@@ -60,8 +66,22 @@ const editorValue = ref("");
 const walkVersion = ref(0);
 const editorRef = ref(null);
 const highlightRef = ref(null);
+const consoleRef = ref(null);
+
+// Tailing pins the console to the newest output. We stop pinning the moment the
+// user scrolls up to read earlier lines, and resume once they scroll back down.
+let consolePinned = true;
+
+function onConsoleScroll() {
+  const el = consoleRef.value;
+  if (!el) return;
+  // A few px of slack so sub-pixel rounding never breaks the "at bottom" check.
+  consolePinned = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+}
 let toastTimer = 0;
-let abortController = null;
+// Each run kind owns its own abort controller so worker and starter runs are
+// fully independent (one in flight never cancels or disables the other).
+const runControllers = { worker: null, starter: null, all: null };
 
 const highlightedCode = computed(() => `${highlightCode(editorValue.value)}\n`);
 const themeToggleLabel = computed(() => (state.theme === "dark" ? "Light mode" : "Dark mode"));
@@ -82,6 +102,10 @@ const walkState = computed(() => {
   walkVersion.value;
   return readWalkState(currentExercise.value);
 });
+const checkableSteps = computed(() => walkthrough.value?.steps.filter((step) => step.checkable) ?? []);
+const completedStepCount = computed(() =>
+  checkableSteps.value.filter((step) => walkState.value[step.id]).length,
+);
 const instructionHtml = computed(() => renderMarkdown(currentExercise.value.readme));
 const editorStats = computed(() => {
   const value = editorValue.value;
@@ -89,8 +113,18 @@ const editorStats = computed(() => {
   return `${lines} lines - ${value.length} chars`;
 });
 const canRunSandbox = computed(() => state.sandboxAvailable);
-const canStopSandbox = computed(() => !!state.sandboxId && !state.running);
+const canStopSandbox = computed(() => !!state.sandboxId && !state.workerBusy && !state.starterBusy);
+const workerStatusLabel = computed(() => {
+  if (state.workerBusy && !state.workerActive) return "Worker starting…";
+  return state.workerActive ? "Worker running" : "Worker stopped";
+});
 const generatedAt = computed(() => `Course data ${new Date(course.generatedAt).toLocaleString()}`);
+
+function fileRole(file) {
+  if (/(^|\/)worker\/index\.ts$/.test(file.path)) return "worker";
+  if (/(^|\/)starter\/index\.ts$/.test(file.path)) return "starter";
+  return "";
+}
 
 function initialExerciseIndex() {
   const fromHash = window.location.hash.replace(/^#/, "");
@@ -175,6 +209,7 @@ function selectExercise(index) {
     : exercise.files[0]?.path ?? "";
   state.logs = [];
   state.workflowOutput = "";
+  state.workerActive = false;
   syncEditorFromState();
   updateHash();
 }
@@ -304,18 +339,31 @@ async function checkSandbox() {
   }
 }
 
-async function runInSandbox() {
-  if (!canRunSandbox.value) return;
-  // Cancel any run already in flight so a click always starts a fresh run.
-  abortController?.abort();
+// Marks/unmarks the busy flag(s) for a run kind. "all" drives both tabs.
+function setBusy(action, value) {
+  if (action !== "starter") state.workerBusy = value;
+  if (action !== "worker") state.starterBusy = value;
+}
+
+// Shared driver for every run flow (combined / worker / starter). Each kind has
+// its own abort controller and busy flag, so worker and starter runs are
+// independent: starting/stopping one never cancels or disables the other.
+// Returns true when the run completed without error.
+async function streamAction(action, extraBody) {
+  runControllers[action]?.abort();
   const controller = new AbortController();
-  abortController = controller;
-  state.running = true;
+  runControllers[action] = controller;
+  setBusy(action, true);
   state.runnerPanel = "console";
   state.spinner = "";
-  state.logs = [];
-  state.workflowOutput = "";
+  // Separate worker/starter runs append to the console so both stay visible;
+  // only the combined run starts from a clean console.
+  if (action === "all") {
+    state.logs = [];
+    state.workflowOutput = "";
+  }
 
+  let ok = false;
   try {
     const response = await fetch("/api/run", {
       method: "POST",
@@ -324,6 +372,7 @@ async function runInSandbox() {
         sandboxId: state.sandboxId || undefined,
         exerciseId: currentExercise.value.id,
         files: allEditedFiles(),
+        ...extraBody,
       }),
       signal: controller.signal,
     });
@@ -331,18 +380,68 @@ async function runInSandbox() {
       throw new Error((await response.text().catch(() => "")) || `HTTP ${response.status}`);
     }
     await readEventStream(response.body);
+    ok = true;
   } catch (err) {
     if (err.name !== "AbortError") {
       state.logs.push(`ERROR: ${err.message}`);
       state.runnerPanel = "console";
     }
   } finally {
-    // Only the most recent run clears shared state; a superseded run bails out
-    // so it doesn't reset `running` or drop the new run's abort controller.
-    if (abortController === controller) {
-      state.running = false;
-      abortController = null;
+    // Only the most recent run of this kind clears its own state; a superseded
+    // one bails out so it doesn't disturb the run that replaced it.
+    if (runControllers[action] === controller) {
+      setBusy(action, false);
+      runControllers[action] = null;
     }
+  }
+  return ok;
+}
+
+// Combined Run (dock): (re)start the worker and run the starter together.
+async function runInSandbox() {
+  if (!canRunSandbox.value) return;
+  if (await streamAction("all", {})) state.workerActive = true;
+}
+
+// worker/index.ts tab: start (or restart) the long-running worker. Always
+// allowed - a fresh click just cancels and restarts the in-flight worker run.
+async function runWorker() {
+  if (await streamAction("worker", { action: "worker" })) state.workerActive = true;
+}
+
+// starter/index.ts tab: run the starter once against the running worker. Always
+// allowed - re-running cancels and restarts any in-flight starter run.
+async function runStarter() {
+  await streamAction("starter", { action: "starter" });
+}
+
+// starter/index.ts tab: cancel an in-flight starter run (no-op if none running).
+function stopStarter() {
+  runControllers.starter?.abort();
+}
+
+// worker/index.ts tab: stop the long-running worker without tearing down the
+// sandbox. No-op (with a hint) when there's no sandbox to act on.
+async function stopWorker() {
+  if (!state.sandboxId) {
+    showToast("No sandbox running");
+    return;
+  }
+  state.workerBusy = true;
+  try {
+    const response = await fetch("/api/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sandboxId: state.sandboxId, target: "worker" }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    state.workerActive = false;
+    state.logs.push("Worker stopped.");
+    showToast("Worker stopped");
+  } catch (err) {
+    state.logs.push(`Stop worker failed: ${err.message}`);
+  } finally {
+    state.workerBusy = false;
   }
 }
 
@@ -373,23 +472,27 @@ function handleRunnerEvent({ kind, payload }) {
     localStorage.setItem(`${storagePrefix}:sandbox-id`, payload.sandboxId);
     localStorage.setItem(`${storagePrefix}:temporal-ui-url`, payload.uiUrl);
   } else if (kind === "result") {
-    state.workflowOutput = payload.workflowResult || "(no output)";
-    state.runnerPanel = "output";
+    // A worker-only run has no workflowResult; leave the output pane untouched.
+    if (payload.workflowResult !== undefined) {
+      state.workflowOutput = payload.workflowResult || "(no output)";
+      state.runnerPanel = "output";
+      state.logs.push("Click the Temporal UI button above to inspect this Workflow in the web UI.");
+      // Celebrate out-of-band so a confetti hiccup can never disrupt the stream
+      // handler (a throw here would otherwise bubble up and hide the output).
+      if (outputMatchesExpected(currentExercise.value.id, payload.workflowResult)) {
+        window.setTimeout(() => {
+          try {
+            launchConfetti();
+          } catch {
+            /* celebration is best-effort */
+          }
+        }, 0);
+      }
+    }
     currentFiles.value.forEach((file) => {
       if (fileContent(file) === baseContent(file)) return;
       localStorage.setItem(fileStorageKey(file.path), fileContent(file));
     });
-    // Celebrate out-of-band so a confetti hiccup can never disrupt the stream
-    // handler (a throw here would otherwise bubble up and hide the output).
-    if (outputMatchesExpected(currentExercise.value.id, payload.workflowResult)) {
-      window.setTimeout(() => {
-        try {
-          launchConfetti();
-        } catch {
-          /* celebration is best-effort */
-        }
-      }, 0);
-    }
   } else if (kind === "error") {
     state.logs.push(`ERROR: ${payload}`);
     state.runnerPanel = "console";
@@ -418,11 +521,25 @@ async function stopSandbox() {
 function clearSandboxState() {
   state.sandboxId = "";
   state.temporalUiUrl = "";
+  state.workerActive = false;
   localStorage.removeItem(`${storagePrefix}:sandbox-id`);
   localStorage.removeItem(`${storagePrefix}:temporal-ui-url`);
 }
 
 watch(editorValue, persistCurrentEdit);
+
+// Keep the freshest console output in view as logs/spinner stream in (and when
+// the console tab is reopened), unless the user has scrolled up to read back.
+watch(
+  () => [state.logs.length, state.spinner, state.runnerPanel],
+  () => {
+    if (state.runnerPanel !== "console" || !consolePinned) return;
+    nextTick(() => {
+      const el = consoleRef.value;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  },
+);
 
 watch(() => state.theme, applyTheme, { immediate: true });
 
@@ -453,7 +570,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  abortController?.abort();
+  Object.values(runControllers).forEach((controller) => controller?.abort());
   window.clearTimeout(toastTimer);
 });
 </script>
@@ -491,18 +608,26 @@ onBeforeUnmount(() => {
     <main class="course-shell" :style="{ '--code-col': state.codeWidth || undefined }">
       <section class="workspace-panel code-panel" aria-label="Code workspace">
         <div class="file-tabs" role="tablist" aria-label="Source files">
-          <button
-            v-for="file in currentFiles"
-            :key="file.path"
-            class="file-tab"
-            :class="{ active: file.path === state.activeFilePath, dirty: isDirty(file) }"
-            type="button"
-            role="tab"
-            :title="file.path"
-            @click="activateFile(file.path)"
-          >
-            {{ labelForPath(currentExercise, file.path) }}
-          </button>
+          <template v-for="file in currentFiles" :key="file.path">
+            <button
+              class="file-tab"
+              :class="{ active: file.path === state.activeFilePath, dirty: isDirty(file) }"
+              type="button"
+              role="tab"
+              :title="file.path"
+              @click="activateFile(file.path)"
+            >
+              {{ labelForPath(currentExercise, file.path) }}
+            </button>
+            <span v-if="fileRole(file) === 'worker'" class="tab-run">
+              <button class="tab-btn" type="button" title="Start the worker" @click="runWorker">▶</button>
+              <button class="tab-btn" type="button" title="Stop the worker" @click="stopWorker">■</button>
+            </span>
+            <span v-else-if="fileRole(file) === 'starter'" class="tab-run">
+              <button class="tab-btn" type="button" title="Run the starter once" @click="runStarter">▶</button>
+              <button class="tab-btn" type="button" title="Cancel the starter run" @click="stopStarter">■</button>
+            </span>
+          </template>
           <button
             v-if="hasSolution"
             class="view-tab"
@@ -532,11 +657,13 @@ onBeforeUnmount(() => {
         </div>
         <div class="dock-resizer" data-cursor="row-resize" role="separator" aria-orientation="horizontal" aria-label="Resize runner panel" @pointerdown="startDockResize" />
         <div class="runner-dock" :style="{ height: state.dockHeight || undefined }">
-          <div class="runner-header">
-            <div>
-              <p class="panel-kicker">Live sandbox</p>
-              <strong>{{ state.sandboxMessage }}</strong>
-            </div>
+          <div class="runner-tabs" role="tablist" aria-label="Runner output">
+            <button class="runner-tab" :class="{ active: state.runnerPanel === 'console' }" type="button" @click="state.runnerPanel = 'console'">Console</button>
+            <button class="runner-tab" :class="{ active: state.runnerPanel === 'output' }" type="button" @click="state.runnerPanel = 'output'">Output</button>
+            <span class="worker-status" :class="{ active: state.workerActive, busy: state.workerBusy }">
+              <span class="worker-dot" aria-hidden="true"></span>
+              {{ workerStatusLabel }}
+            </span>
             <div class="runner-actions">
               <button class="button button-primary" type="button" :disabled="!canRunSandbox" @click="runInSandbox">
                 Run
@@ -546,12 +673,7 @@ onBeforeUnmount(() => {
               <button class="button" type="button" :disabled="!canStopSandbox" @click="stopSandbox">Stop</button>
             </div>
           </div>
-          <div class="runner-tabs" role="tablist" aria-label="Runner output">
-            <button class="runner-tab" :class="{ active: state.runnerPanel === 'console' }" type="button" @click="state.runnerPanel = 'console'">Console</button>
-            <button class="runner-tab" :class="{ active: state.runnerPanel === 'output' }" type="button" @click="state.runnerPanel = 'output'">Output</button>
-            <span v-if="state.sandboxId" class="sandbox-id">{{ state.sandboxId }}</span>
-          </div>
-          <pre v-show="state.runnerPanel === 'console'" class="runner-output">{{ state.logs.length ? state.logs.join('\n') : 'Runner logs appear here once you launch.' }}<template v-if="state.spinner">{{ `\n${state.spinner}` }}</template></pre>
+          <pre ref="consoleRef" v-show="state.runnerPanel === 'console'" class="runner-output" @scroll="onConsoleScroll">{{ state.logs.length ? state.logs.join('\n') : 'Runner logs appear here once you launch.' }}<template v-if="state.spinner">{{ `\n${state.spinner}` }}</template></pre>
           <pre v-show="state.runnerPanel === 'output'" class="runner-output">{{ state.workflowOutput || 'Workflow output appears here after a successful run.' }}</pre>
         </div>
         <div class="editor-footer">
@@ -564,21 +686,43 @@ onBeforeUnmount(() => {
 
       <section class="workspace-panel instruction-panel" aria-label="Exercise instructions">
         <div class="instruction-heading">
-          <p class="panel-kicker">Instructions</p>
+          <div class="instruction-heading-top">
+            <p class="panel-kicker">Instructions</p>
+            <span v-if="checkableSteps.length" class="step-progress-count">
+              {{ completedStepCount }}/{{ checkableSteps.length }}
+            </span>
+          </div>
+          <div
+            v-if="checkableSteps.length"
+            class="step-progress"
+            role="progressbar"
+            :aria-valuenow="completedStepCount"
+            :aria-valuemax="checkableSteps.length"
+            :aria-label="`${completedStepCount} of ${checkableSteps.length} steps complete`"
+          >
+            <span
+              v-for="step in checkableSteps"
+              :key="step.id"
+              class="step-progress-seg"
+              :class="{ filled: walkState[step.id] }"
+            />
+          </div>
         </div>
 
         <div class="instruction-content">
           <div v-if="walkthrough" class="walkthrough">
             <div v-html="walkthrough.intro" />
             <template v-for="step in walkthrough.steps" :key="`${currentExercise.id}-${step.id}`">
-              <div v-if="step.checkable" class="step-row" :class="{ completed: walkState[step.id] }">
-                <input
-                  type="checkbox"
-                  :checked="walkState[step.id]"
-                  :aria-label="step.title"
-                  @change="setWalkStep(step.id, $event.target.checked)"
-                >
+              <div v-if="step.checkable" class="step-block" :class="{ completed: walkState[step.id] }">
                 <div class="step-body" v-html="step.html" />
+                <label class="step-check" :class="{ done: walkState[step.id] }">
+                  <input
+                    type="checkbox"
+                    :checked="walkState[step.id]"
+                    @change="setWalkStep(step.id, $event.target.checked)"
+                  >
+                  <span>{{ walkState[step.id] ? "Step complete" : "Mark step complete" }}</span>
+                </label>
               </div>
               <div v-else class="step-plain" v-html="step.html" />
             </template>
