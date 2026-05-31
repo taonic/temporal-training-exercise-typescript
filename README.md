@@ -90,3 +90,31 @@ Replace `solution1` with any exercise/solution number.
 ```bash
 npm test
 ```
+
+## Vue Course Website
+
+Start the Vue course app:
+
+```bash
+npm run course:serve
+```
+
+Open http://127.0.0.1:4173 to use the two-panel course view. The left panel shows editable source tabs for the selected exercise, and the right panel shows instructions, task tracking, run commands, and solution notes.
+
+The course data is generated from `exercise*/README.md`, optional `exercise*/SOLUTION.md`, and each exercise's `src` files.
+
+### Daytona Live Runner
+
+In another terminal, start the Daytona-backed runner:
+
+```bash
+DAYTONA_KEY=your_daytona_key npm run course:sandbox
+```
+
+The Vue app proxies `/api` to the runner in development. When the runner is available, students can launch a Daytona sandbox, upload their edited TypeScript files, run the worker and starter, and open the signed Temporal UI preview URL.
+
+Build the static Vue bundle:
+
+```bash
+npm run course:build
+```
