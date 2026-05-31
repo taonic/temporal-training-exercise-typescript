@@ -12,6 +12,13 @@ const tsconfigPath = path.join(rootDir, "tsconfig.json");
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 8787);
+// In production (Fly.io) a single process serves both the built course site and
+// the /api/* endpoints from the same origin, so the SPA's relative /api calls
+// keep working. In local dev Vite serves the site and proxies /api here, so this
+// stays unset and the runner only answers the API.
+const distDir = process.env.COURSE_DIST_DIR
+  ? path.resolve(process.env.COURSE_DIST_DIR)
+  : null;
 const appDir = "/opt/app";
 const temporalBin = "/usr/local/bin/temporal";
 const temporalUiPort = 8233;
@@ -49,6 +56,49 @@ async function readJson(req) {
 
 function writeSse(res, kind, payload) {
   res.write(`data: ${JSON.stringify({ kind, payload })}\n\n`);
+}
+
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8",
+};
+
+// Serves the built SPA from distDir. Unknown paths fall back to index.html so
+// client-side routing works; hashed assets get long-lived caching, the entry
+// HTML stays uncached so deploys are picked up.
+async function serveStatic(req, res, urlPath) {
+  const rel = path.normalize(decodeURIComponent(urlPath)).replace(/^(\.\.[/\\])+/, "");
+  let filePath = path.join(distDir, rel);
+  if (!filePath.startsWith(distDir)) filePath = path.join(distDir, "index.html");
+
+  let body;
+  try {
+    const stat = await fs.stat(filePath);
+    if (stat.isDirectory()) throw new Error("is a directory");
+    body = await fs.readFile(filePath);
+  } catch {
+    filePath = path.join(distDir, "index.html");
+    body = await fs.readFile(filePath);
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const isAsset = filePath.includes(`${path.sep}assets${path.sep}`);
+  res.writeHead(200, {
+    "Content-Type": contentTypes[ext] ?? "application/octet-stream",
+    "Cache-Control": isAsset ? "public, max-age=31536000, immutable" : "no-cache",
+  });
+  res.end(req.method === "HEAD" ? undefined : body);
 }
 
 async function sourceFilePaths(exerciseId) {
@@ -404,6 +454,11 @@ const server = http.createServer(async (req, res) => {
         await getManager().stop(body.sandboxId);
       }
       json(res, 200, { ok: true });
+      return;
+    }
+
+    if (distDir && (req.method === "GET" || req.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      await serveStatic(req, res, url.pathname);
       return;
     }
 

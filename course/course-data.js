@@ -1,5 +1,5 @@
 window.COURSE_DATA = {
-  "generatedAt": "2026-05-31T12:27:19.436Z",
+  "generatedAt": "2026-05-31T12:36:43.828Z",
   "title": "Temporal TypeScript Training",
   "exercises": [
     {

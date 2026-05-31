@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc --build",
+    "start": "node scripts/course-sandbox-runner.mjs",
     "test": "mocha --exit '{solution,exercise}*/src/*.test.ts' --require ts-node/register --timeout 30000",
     "course:data": "node scripts/build-course-site.mjs",
     "course:build": "vite build --config course/vite.config.mjs",
