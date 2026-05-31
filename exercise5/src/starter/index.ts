@@ -2,6 +2,9 @@ import { Client } from '@temporalio/client';
 import { transfer, approveSignal } from '../workflow';
 import type { TransferRequest } from '../models';
 
+const randomSuffix = () =>
+  Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+
 async function main() {
   const client = new Client();
 
@@ -14,7 +17,7 @@ async function main() {
 
   const handle = await client.workflow.start(transfer, {
     taskQueue: 'money-transfer-task-queue',
-    workflowId: 'money-transfer-workflow',
+    workflowId: `money-transfer-workflow-${randomSuffix()}`,
     args: [request],
   });
 

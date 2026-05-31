@@ -36,10 +36,12 @@
 - Final status confirmation
 
 ### Query Using CLI
-You can also query the workflow status using the Temporal CLI:
+You can also query the workflow status using the Temporal CLI. The starter
+generates a unique Workflow ID (`money-transfer-workflow-<suffix>`), so copy the
+exact ID from the starter output or the Temporal UI:
 ```bash
 temporal workflow query \
-  --workflow-id money-transfer-workflow \
+  --workflow-id money-transfer-workflow-<suffix> \
   --type getStatus
 ```
 

@@ -66,4 +66,13 @@ carries its summary text describing the account it acted on.
 - Defining a proxy per Activity inside the Workflow lets the summary include request data.
 - The Workflow's behavior is unchanged — this is purely about visibility.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. Activity summaries change observability but not behavior. When is investing extra code in observability worth it?
+2. Why does defining a proxy *per Activity* (so the summary can include request data) help someone reading the Web UI during an incident?
+3. What other metadata would you want surfaced for a money transfer, and what would you deliberately leave out?
+4. If summaries don't affect the result, how would you justify this change to a teammate focused only on features?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

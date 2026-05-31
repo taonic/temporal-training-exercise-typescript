@@ -49,4 +49,13 @@ Because this version is complete, it's a good place to try things and press
 - Every concept from Exercises 1–5 appears here working together.
 - Use **Run** plus the **Temporal UI** to explore how the pieces interact.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. Trace one transfer end-to-end: which concept from Exercises 1–5 handles each step (start, withdraw, wait for approval, query status, deposit/refund, visibility)?
+2. Send `approveSignal` as `false`. How does the compensation path differ, and what does the final state look like in the Temporal UI?
+3. If `deposit` kept failing, where would you look first, and which Temporal features help you diagnose it?
+4. Which single piece, if removed, would most reduce this Workflow's reliability or operability — and why?
+
 Tip: Use **Switch to solution** above the editor to compare against the canonical source.

@@ -121,4 +121,13 @@ You can also open the **Temporal UI** button to inspect the
 - **Worker** runs both, and must register the Workflow via `workflowsPath`.
 - **Starter** begins the execution on a shared task queue and prints the result.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. Why must the Workflow reach the Activity through `proxyActivities` instead of importing and calling `createGreeting` directly?
+2. If the Worker started without registering `workflowsPath`, who would be left waiting, and why?
+3. The Starter and Worker never reference each other directly — what actually connects them? What breaks if they use different task queue names?
+4. Workflows must be deterministic. Why does putting the greeting logic in an Activity (rather than the Workflow) respect that rule?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

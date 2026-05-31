@@ -106,4 +106,13 @@ such as `TransferStatus = "COMPLETED"` or `AccountId = "account-123"`.
 - Set immutable-at-start data (`AccountId`) in `client.workflow.start()`.
 - Update changing data (`TransferStatus`) with `upsertSearchAttributes()` inside the Workflow.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. Why is `AccountId` set once at start time while `TransferStatus` is updated with `upsertSearchAttributes()` during execution? What makes one immutable and the other not?
+2. Both search attributes and Queries expose Workflow state. When would you reach for each?
+3. How do search attributes change the way an operator finds one specific transfer among thousands of running Workflows?
+4. What are the trade-offs of indexing business data as search attributes (think cost, cardinality, and which fields are worth indexing)?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

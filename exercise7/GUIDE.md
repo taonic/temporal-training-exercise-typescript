@@ -152,4 +152,13 @@ Open the **Temporal UI** button to watch `TransferStatus` pass through
 - The Workflow catches the failure, marks `PENDING_FIX`, and waits for a fix.
 - A **retry signal** delivers corrected data and resumes execution.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. When should a failure be `nonRetryable` versus left to Temporal's automatic retries? What's the cost of getting it wrong in each direction?
+2. The Workflow marks `PENDING_FIX` and waits for a human. How is that different from just letting the Activity retry forever?
+3. Why deliver the correction via a Signal rather than failing the Workflow and starting a brand-new one?
+4. How long could a Workflow safely sit in `PENDING_FIX`, and what about Temporal makes that possible?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

@@ -107,6 +107,12 @@ await handle.signal(approveSignal, true);
 the `approve` signal (after a short delay) so the transfer is approved and
 completes. The Starter and Worker share the `money-transfer-task-queue`.
 
+**You can also send the signal by hand.** While the Workflow is paused waiting
+for approval, open the **Temporal UI** button, find your running Workflow, and
+use **More Actions → Send a Signal**. Enter the signal name `approve` with an
+input of `true` to approve the transfer (or `false` to reject and trigger the
+refund) — exactly what the line above does programmatically.
+
 ## Step 5 — Run it
 
 Press the **Run** button. In the **Console** you'll see the withdrawal, the
@@ -124,5 +130,14 @@ Open the **Temporal UI** button to watch the signal land and the Activities run.
 - **Signal** (`approveSignal`) delivers the human approval into the running Workflow.
 - **`condition()`** durably waits until approval is received.
 - **Compensation**: if not approved, the Workflow refunds the withdrawal.
+
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. The Workflow pauses at `condition(() => approvalReceived)`, possibly for a long time. Where does that pending state live, and how does it survive a Worker restart?
+2. `withdraw` and `deposit` can fail randomly, yet the Workflow has no retry logic. Who retries them, and why does that keep the Workflow code simpler?
+3. Why model the refund as a *compensating* Activity instead of trying to "undo" the withdrawal directly? What does this pattern give you?
+4. What's the difference between delivering the approval as a Signal versus passing it as a Workflow argument at start time?
 
 Stuck? Use **Switch to solution** above the editor to view the completed code.

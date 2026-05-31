@@ -90,4 +90,13 @@ event history after the deposit.
 - New side effects (the notification) go in an Activity, gated by the patch.
 - Replay tests verify old histories still work — validated via the test suite, not the Run button.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. Why can't you simply edit the Workflow code and redeploy while Workflows are mid-flight? What exactly does `patched()` protect against?
+2. `patched(changeId)` returns `true` for new runs and `false` when replaying old history. Why is that asymmetry precisely what's needed?
+3. Why does the new side effect (the notification) live in an Activity gated by the patch, rather than inline in the Workflow body?
+4. Why are replay tests — not the Run button — the right way to validate a versioning change? Once every pre-change Workflow has finished, what can you safely remove?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

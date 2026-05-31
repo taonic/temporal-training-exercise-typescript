@@ -55,10 +55,13 @@ Comment out the signal calls in `starter/index.ts` to manually send signals via 
 5. Observe workflow complete step by step
 
 ### Alternative: Use Temporal CLI
+The starter generates a unique Workflow ID (`money-transfer-workflow-<suffix>`),
+so copy the exact ID from the starter output or the Temporal UI.
+
 Send approval:
 ```bash
 temporal workflow signal \
-  --workflow-id money-transfer-workflow \
+  --workflow-id money-transfer-workflow-<suffix> \
   --name approve \
   --input true
 ```
@@ -66,7 +69,7 @@ temporal workflow signal \
 Retry with corrected data:
 ```bash
 temporal workflow signal \
-  --workflow-id money-transfer-workflow \
+  --workflow-id money-transfer-workflow-<suffix> \
   --name retry \
   --input '{"key":"toAccount","value":"account-456"}'
 ```

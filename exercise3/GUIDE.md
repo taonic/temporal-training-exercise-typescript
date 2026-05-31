@@ -119,4 +119,13 @@ yourself while exploring the execution.
 - The Workflow keeps `status` accurate at every transition, including `FAILED`.
 - **Signals change state; Queries read it** — that's the key distinction.
 
+## Questions to ponder
+
+Take a moment to consolidate what you learned:
+
+1. A Query handler must read state without mutating it. Why is that restriction essential for a durable, replayable Workflow?
+2. Signals change state; Queries read it. Given a real task, how do you decide which one you need?
+3. Why does answering a Query require a running Worker, even though the Workflow's event history is safely stored on the server?
+4. How does keeping `status` accurate at every transition (including `FAILED`) help someone debugging this Workflow in production?
+
 Stuck? Use **Switch to solution** above the editor to view the completed code.

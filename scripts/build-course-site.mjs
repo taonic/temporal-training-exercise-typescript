@@ -73,9 +73,9 @@ async function readExercise(entry) {
   const exerciseDir = path.join(rootDir, entry.name);
   const readmePath = path.join(exerciseDir, "README.md");
   const solutionPath = path.join(exerciseDir, "SOLUTION.md");
-  // Sandbox-specific, step-by-step instructions tailored to the click-to-run
-  // browser environment. Falls back to the generic README when absent.
-  const sandboxPath = path.join(exerciseDir, "SANDBOX.md");
+  // Guide: step-by-step instructions tailored to the click-to-run browser
+  // environment. Falls back to the generic README when absent.
+  const guidePath = path.join(exerciseDir, "GUIDE.md");
   const readme = await readInputFile(readmePath);
   const solutionDir = path.join(rootDir, `solution${number}`);
   const solutionContent = {};
@@ -108,7 +108,7 @@ async function readExercise(entry) {
     duration: durationFromTitle(title),
     root: entry.name,
     readme,
-    sandbox: (await exists(sandboxPath)) ? await readInputFile(sandboxPath) : "",
+    sandbox: (await exists(guidePath)) ? await readInputFile(guidePath) : "",
     solution: (await exists(solutionPath)) ? await readInputFile(solutionPath) : "",
     files: files.sort(sortFiles),
   };
