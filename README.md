@@ -101,7 +101,7 @@ npm run course:serve
 
 Open http://127.0.0.1:4173 to use the two-panel course view. The left panel shows editable source tabs for the selected exercise, and the right panel shows instructions, task tracking, run commands, and solution notes.
 
-The course data is generated from `exercise*/README.md`, optional `exercise*/SOLUTION.md`, and each exercise's `src` files.
+The course data is generated from `exercise*/README.md`, the in-browser walkthrough in `exercise*/ONLINE_GUIDE.md` (with `exercise*/OFFLINE_GUIDE.md` holding the equivalent local-terminal version), and each exercise's `src` files.
 
 ### Daytona Live Runner
 

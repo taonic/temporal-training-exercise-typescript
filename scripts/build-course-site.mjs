@@ -72,10 +72,12 @@ async function readExercise(entry) {
   const number = Number(entry.name.replace("exercise", ""));
   const exerciseDir = path.join(rootDir, entry.name);
   const readmePath = path.join(exerciseDir, "README.md");
-  const solutionPath = path.join(exerciseDir, "SOLUTION.md");
-  // Guide: step-by-step instructions tailored to the click-to-run browser
+  // Offline guide: the same walkthrough adapted for running the exercise locally
+  // (terminal commands, local Temporal dev server). Not shown in the web app.
+  const solutionPath = path.join(exerciseDir, "OFFLINE_GUIDE.md");
+  // Online guide: step-by-step instructions tailored to the click-to-run browser
   // environment. Falls back to the generic README when absent.
-  const guidePath = path.join(exerciseDir, "GUIDE.md");
+  const guidePath = path.join(exerciseDir, "ONLINE_GUIDE.md");
   const readme = await readInputFile(readmePath);
   const solutionDir = path.join(rootDir, `solution${number}`);
   const solutionContent = {};
